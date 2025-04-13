@@ -1,4 +1,5 @@
 import json
+
 from django.contrib import admin, messages
 from django.utils.html import format_html
 from django.urls import path
@@ -10,16 +11,16 @@ from .exporters import PageExporter
 from .importers import PageImporter
 from .items import PageItem
 
+
 # PageExport Admin
 # ----------------
 @admin.register(PageExport)
 class PageExportAdmin(admin.ModelAdmin):
     list_display = ('page', 'modified_at')
-    readonly_fields = ('data_pretty',)
 
     def save_model(self, request, obj, form, change):
         # Export and save
-        exporter = PageExporter(obj.page, recursive=True)
+        exporter = PageExporter(obj.page, recursive=obj.recursive)
         page_item = exporter.export()
         obj.data = page_item.asdict()
         super().save_model(request, obj, form, change)
@@ -31,6 +32,7 @@ class PageExportAdmin(admin.ModelAdmin):
             json_data
         )
     data_pretty.short_description = "Exported JSON"
+
 
 # PageImport Admin
 # ----------------

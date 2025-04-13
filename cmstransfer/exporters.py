@@ -3,13 +3,15 @@ from cms.models import Page, PageContent, Placeholder, CMSPlugin
 from cms.plugin_base import CMSPluginBase
 from cms.plugin_pool import plugin_pool
 from cmsplus.models import PlusItem
-from django.core.serializers.json import DjangoJSONEncoder
-from cmstransfer.items import PageItem, PageContentItem, PlaceholderItem, PluginItem
+from djangocms_text.models import Text as TextPlugin
+from .serializers import JsonEncoder
+from .items import PageItem, PageContentItem, PlaceholderItem, PluginItem
 
 class PageExporter:
     def __init__(self, page: Page, recursive=False):
         self.page = page
         self.recursive = recursive
+        self.encoder = JsonEncoder()
 
     def export(self) -> PageItem:
         return self.build_page_item(self.page, self.recursive)
@@ -27,7 +29,7 @@ class PageExporter:
             page_item.page_contents.append(page_content_item)
 
         if recursive:
-            for child_page in Page.get_child_pages():
+            for child_page in page.get_child_pages():
                 child_page_item = self.build_page_item(child_page, recursive)
                 page_item.pages.append(child_page_item)
 
@@ -42,7 +44,7 @@ class PageExporter:
             page_title=page_content.page_title,
             menu_title=page_content.menu_title,
             meta_description=page_content.meta_description,
-            in_navigation=page_content.page.in_navigation,
+            in_navigation=page_content.in_navigation,
             template=page_content.template,
         )
 
@@ -73,8 +75,7 @@ class PageExporter:
         plugin_item = PluginItem(
             type="plugin",
             plugin_type=instance.plugin_type,
-            language=instance.language,
-            config=self.serialize_plugin(instance, plugin_class),
+            config=self.serialize_instance(instance, plugin_class),
         )
 
         for child in plugin.get_children().order_by('position'):
@@ -89,8 +90,15 @@ class PageExporter:
         if isinstance(instance, PlusItem):
             # handle PlusItem
             config['_json'] = instance.config
+        elif isinstance(instance, TextPlugin):
+            # handle TextPlugin
+            config = {
+                'body': instance.body,
+                'json': instance.json,
+                'rte': 'ckeditor4',
+            }
         else:
-            # handle CMSPlugin
+            # handle other CMSPlugin
             #  instances which have fields, which are not json - serializible may have a serialize method
             if hasattr(instance, 'serialize'):
                 config = instance.serialize()
@@ -99,8 +107,21 @@ class PageExporter:
                 plugin_fields = plugin_class.form.base_fields
                 for field in plugin_fields:
                     if hasattr(instance, field):
-                        config[field] = getattr(instance, field)
+                        v = getattr(instance, field)
+                        config[field] = self.serialize_value(v)
         return config
 
+    def serialize_value(self, value):
+        if isinstance(value, (list, tuple)):
+            return [self.serialize_value(v) for v in value]
+        elif isinstance(value, dict):
+            return {k: self.serialize_value(v) for k, v in value.items()}
+        else:
+            try:
+                return self.encoder.default(value)
+            except TypeError:
+                return value  # fallback for primitives
+
+
     def to_json(self):
-        return json.dumps(self.export().asdict(), cls=DjangoJSONEncoder, indent=2, ensure_ascii=False)
+        return json.dumps(self.export().asdict(), cls=JsonEncoder, indent=2, ensure_ascii=False)

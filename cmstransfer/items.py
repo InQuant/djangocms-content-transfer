@@ -39,13 +39,13 @@ class TransferItem:
 @dataclass
 class PluginItem(TransferItem):
     plugin_type: str
-    config: Dict[str: Any] = field(default_factory=dict)
+    config: Dict[str, Any] = field(default_factory=dict)
     children: List['PluginItem'] = field(default_factory=list)
 
 @dataclass
 class PlaceholderItem(TransferItem):
     slot: str
-    extra_context: Dict[str: Any] = field(default_factory=dict)
+    extra_context: Dict[str, Any] = field(default_factory=dict)
     plugins: List[PluginItem] = field(default_factory=list)
 
 @dataclass
