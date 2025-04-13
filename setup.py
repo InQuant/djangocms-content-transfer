@@ -1,17 +1,16 @@
-import sys
 from setuptools import setup
-from cmsplus import __version__
+from cmstransfer import __version__
 
 
 setup(
-    name='djangocms_plus',
+    name='djangocms-content-transfer',
     version=__version__,
     author='InQuant GmbH',
     author_email='info@inquant.de',
-    packages=['cmsplus'],
-    url='https://github.com/domlysi/djangocms_plus',
+    packages=['cmstransfer'],
+    url='',
     license='MIT',
-    description='Lightweight rewrite for DjangoCMS Plugins to store plugin data in JSON.',
+    description='Usefull to transfer Page-, PageContent-, Alias-, Placeholder-Objects from one CMS System to another.',
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
     zip_safe=False,
