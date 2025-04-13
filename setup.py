@@ -1,10 +1,8 @@
 from setuptools import setup
-from cmstransfer import __version__
-
 
 setup(
     name='djangocms-content-transfer',
-    version=__version__,
+    version='1.0.0',
     author='InQuant GmbH',
     author_email='info@inquant.de',
     packages=['cmstransfer'],
