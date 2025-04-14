@@ -1,5 +1,5 @@
-from dataclasses import dataclass, field, asdict, fields
-from typing import List, Dict, Type, TypeVar, Any
+from dataclasses import dataclass, field, asdict, fields, is_dataclass
+from typing import get_origin, get_args, Type, TypeVar, Dict, Any, List, get_type_hints
 
 T = TypeVar('T', bound='TransferItem')
 
@@ -21,20 +21,30 @@ class TransferItem:
     @classmethod
     def from_dict(cls: Type[T], data: Dict[str, Any]) -> T:
         init_data = {}
+
+        # Resolve Types incl. ForwardRefs like: List['PluginItem']
+        type_hints = get_type_hints(cls)
+
         for f in fields(cls):
             value = data.get(f.name)
-            if isinstance(f.type, type) and issubclass(f.type, TransferItem):
+            field_type = type_hints[f.name]  # not f.type! which is "'Plugin'"
+            origin = get_origin(field_type)
+
+            if is_dataclass(field_type) and issubclass(field_type, TransferItem):
                 if value:
-                    init_data[f.name] = f.type.from_dict(value)
-            elif (getattr(f.type, '__origin__', None) is list and
-                  hasattr(f.type.__args__[0], 'from_dict')):
-                init_data[f.name] = [
-                    f.type.__args__[0].from_dict(i) for i in value
-                ] if value else []
+                    init_data[f.name] = field_type.from_dict(value)
+
+            elif origin is list:
+                item_type = get_args(field_type)[0]
+                if hasattr(item_type, 'from_dict'):
+                    init_data[f.name] = [item_type.from_dict(i) for i in value] if value else []
+                else:
+                    init_data[f.name] = value
+
             else:
                 init_data[f.name] = value
-        return cls(**init_data)
 
+        return cls(**init_data)
 
 @dataclass
 class PluginItem(TransferItem):

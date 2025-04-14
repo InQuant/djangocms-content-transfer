@@ -105,10 +105,10 @@ class PageExporter:
             else:
                 # put form fields and values into dict
                 plugin_fields = plugin_class.form.base_fields
-                for field in plugin_fields:
-                    if hasattr(instance, field):
-                        v = getattr(instance, field)
-                        config[field] = self.serialize_value(v)
+                for field_name in plugin_fields.keys():
+                    if hasattr(instance, field_name):
+                        v = getattr(instance, field_name)
+                        config[field_name] = self.serialize_value(v)
         return config
 
     def serialize_value(self, value):

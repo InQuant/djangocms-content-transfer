@@ -44,7 +44,7 @@ class PageImportAdmin(admin.ModelAdmin):
     def import_page_action(self, obj):
         if not obj.pk:
             return "Save first to enable import."
-        url = f'./{obj.pk}/import-page/'
+        url = f'../import-page/'
         return format_html(
             '<a class="button" href="{}">Import Page</a>', url
         )
@@ -64,7 +64,7 @@ class PageImportAdmin(admin.ModelAdmin):
         obj = self.get_object(request, pk)
         page_item = PageItem.from_dict(obj.data)
 
-        importer = PageImporter(page_item, parent=obj.parent_page)
+        importer = PageImporter(page_item, request.user, parent=obj.parent_page)
         importer.import_page()
 
         self.message_user(request, "Page successfully imported!", messages.SUCCESS)
