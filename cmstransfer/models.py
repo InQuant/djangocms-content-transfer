@@ -1,12 +1,14 @@
+import json
 from cms.models import Page
 from django.db import models
-from django.core.serializers.json import DjangoJSONEncoder
+from djangocms_alias.models import Alias
+from .serializers import JsonEncoder
 
 # Transfer Models
 #----------------
 
 class Transfer(models.Model):
-    data = models.JSONField(encoder=DjangoJSONEncoder, blank=True, default={})
+    data = models.JSONField(encoder=JsonEncoder, blank=True, default=dict)
     modified_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -43,3 +45,33 @@ class PageImport(Transfer):
 
     class Meta:
         verbose_name = 'Page Import'
+
+
+class AliasExport(Transfer):
+    alias = models.ForeignKey(
+        Alias,
+        on_delete=models.CASCADE,
+        related_name='+',  # no reverse access via alias
+        help_text='Select Alias to export.'
+    )
+
+    class Meta:
+        verbose_name = 'Alias Export'
+
+
+class AliasImport(Transfer):
+    name = models.CharField(max_length=100, blank=True, default='')
+
+    class Meta:
+        verbose_name = 'Alias Import'
+
+    def __str__(self):
+        return self.name or f'AliasImport: {self.id}'
+
+    def save(self, *args, **kwargs):
+        if not self.name:
+            try:
+                self.name = self.data['alias_contents'][0]['name']
+            except:
+                pass
+        super().save(*args, **kwargs)

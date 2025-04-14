@@ -6,11 +6,10 @@ from django.urls import path
 from django.shortcuts import redirect
 from django.core.exceptions import PermissionDenied
 
-from .models import PageExport, PageImport
-from .exporters import PageExporter
-from .importers import PageImporter
-from .items import PageItem
-
+from .models import PageExport, PageImport, AliasExport, AliasImport
+from .exporters import PageExporter, AliasExporter
+from .importers import PageImporter, AliasImporter
+from .items import PageItem, AliasItem
 
 # PageExport Admin
 # ----------------
@@ -25,39 +24,50 @@ class PageExportAdmin(admin.ModelAdmin):
         obj.data = page_item.asdict()
         super().save_model(request, obj, form, change)
 
-    def data_pretty(self, obj):
-        json_data = json.dumps(obj.data, indent=2, ensure_ascii=False)
+
+# AliasExport Admin
+# -----------------
+@admin.register(AliasExport)
+class AliasExportAdmin(admin.ModelAdmin):
+    list_display = ('alias', 'modified_at')
+
+    def save_model(self, request, obj, form, change):
+        # Export and save
+        exporter = AliasExporter(obj.alias)
+        alias_item = exporter.export()
+        obj.data = alias_item.asdict()
+        super().save_model(request, obj, form, change)
+
+
+# Import Mixin
+# ------------
+class ImportActionMixin:
+    def import_action(self, obj):
+        if not obj.pk:
+            return "Save first to enable import."
+        url = f'../import/'
         return format_html(
-            '<pre style="white-space: pre-wrap;">{}</pre>',
-            json_data
+            '<a class="button" href="{}">Import %s</a>' % self.LABEL, url
         )
-    data_pretty.short_description = "Exported JSON"
+    import_action.short_description = "Import"
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path('<int:pk>/import/', self.admin_site.admin_view(self.import_view), name=f'{self.LABEL.lower()}-import'),
+        ]
+        return custom_urls + urls
 
 
 # PageImport Admin
 # ----------------
 @admin.register(PageImport)
-class PageImportAdmin(admin.ModelAdmin):
+class PageImportAdmin(ImportActionMixin, admin.ModelAdmin):
+    LABEL = 'Page'
     list_display = ('parent_page', 'modified_at')
-    readonly_fields = ('import_page_action',)
+    readonly_fields = ('import_action',)
 
-    def import_page_action(self, obj):
-        if not obj.pk:
-            return "Save first to enable import."
-        url = f'../import-page/'
-        return format_html(
-            '<a class="button" href="{}">Import Page</a>', url
-        )
-    import_page_action.short_description = "Import"
-
-    def get_urls(self):
-        urls = super().get_urls()
-        custom_urls = [
-            path('<int:pk>/import-page/', self.admin_site.admin_view(self.import_page_view), name='pageimport-import'),
-        ]
-        return custom_urls + urls
-
-    def import_page_view(self, request, pk):
+    def import_view(self, request, pk):
         if not request.user.is_superuser:
             raise PermissionDenied
 
@@ -68,4 +78,26 @@ class PageImportAdmin(admin.ModelAdmin):
         importer.import_page()
 
         self.message_user(request, "Page successfully imported!", messages.SUCCESS)
+        return redirect(f'../../')  # back to changelist
+
+
+# AliasImport Admin
+# -----------------
+@admin.register(AliasImport)
+class AliasImportAdmin(ImportActionMixin, admin.ModelAdmin):
+    LABEL = 'Alias'
+    list_display = (AliasImport, 'modified_at',)
+    readonly_fields = ('import_action',)
+
+    def import_view(self, request, pk):
+        if not request.user.is_superuser:
+            raise PermissionDenied
+
+        obj = self.get_object(request, pk)
+        alias_item = AliasItem.from_dict(obj.data)
+
+        importer = AliasImporter(alias_item, request.user)
+        importer.import_alias()
+
+        self.message_user(request, "Alias successfully imported!", messages.SUCCESS)
         return redirect(f'../../')  # back to changelist

@@ -77,3 +77,17 @@ class PageItem(TransferItem):
     languages: List[str] = field(default_factory=list)
     pages: List['PageItem'] = field(default_factory=list)
     page_contents: List[PageContentItem] = field(default_factory=list)
+
+@dataclass
+class AliasContentItem(TransferItem):
+    language: str
+    name: str
+    template: str = ""
+    placeholders: List[PlaceholderItem] = field(default_factory=list)
+
+@dataclass
+class AliasItem(TransferItem):
+    alias_id: int
+    category: str
+    languages: List[str] = field(default_factory=list)
+    alias_contents: List[AliasContentItem] = field(default_factory=list)
