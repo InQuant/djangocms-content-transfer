@@ -73,7 +73,7 @@ class PageImporter(PlaceholderMixin):
             self.import_page_content(page, content_item, pc)
 
         for child_item in self.page_item.pages:
-            PageImporter(child_item, parent=page).import_page()
+            PageImporter(child_item, self.user, parent=page).import_page()
 
         return page
 
