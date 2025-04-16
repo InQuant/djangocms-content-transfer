@@ -78,13 +78,13 @@ class PageImporter(PlaceholderMixin):
         return page
 
     def create_page(self, page_item: PageItem) -> Page:
-        pc = page_item.page_contents[0]
+        language = page_item.page_contents[0] if len(page_item.page_contents) else page_item.languages[0]
         page = create_page(
-            title=pc.title,
-            template=pc.template,
-            language=pc.language,
+            title=page_item.title,
+            template=page_item.template,
+            language=language,
             parent=self.parent,
-            in_navigation=pc.in_navigation,
+            in_navigation=page_item.in_navigation,
             reverse_id=page_item.reverse_id,
         )
         return page

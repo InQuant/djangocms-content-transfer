@@ -105,6 +105,9 @@ class PageExporter(PlaceholderMixin, ToJsonMixin):
             type="page",
             page_id=page.id,
             reverse_id=page.reverse_id,
+            title=page.get_title(),
+            template=page.template,
+            in_navigation=page.get_in_navigation(),
             languages=[lang for lang in page.get_languages()],
         )
 

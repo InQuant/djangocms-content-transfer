@@ -74,9 +74,12 @@ class PageContentItem(TransferItem):
 class PageItem(TransferItem):
     page_id: int
     reverse_id: str = ""
+    title: str = ""
+    template: str = ""
+    in_navigation: bool = True
     languages: List[str] = field(default_factory=list)
-    pages: List['PageItem'] = field(default_factory=list)
     page_contents: List[PageContentItem] = field(default_factory=list)
+    pages: List['PageItem'] = field(default_factory=list)
 
 @dataclass
 class AliasContentItem(TransferItem):
