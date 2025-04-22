@@ -51,7 +51,7 @@ def search_related_object(value):
             # try with sha1 only
             filter.pop('pk')
             try:
-                mdl.objects.filter(**filter)[0] # to avoid multiple
+                relobj = mdl.objects.filter(**filter)[0] # to avoid multiple
             except Exception:
                 pass # object will be None
     return relobj
