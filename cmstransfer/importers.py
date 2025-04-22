@@ -30,17 +30,18 @@ class PluginMixin:
 
     def deserialize_value(self, value, plugin_type:str, language:str):
         if isinstance(value, dict) and 'model' in value and 'pk' in value:
-            obj = search_related_object(value)
-            if obj == None and plugin_type == 'Alias':
+            if plugin_type == 'Alias':
                 obj = self.get_alias_obj_by_name(value, language)
+            else:
+                obj = search_related_object(value)
             return obj
         else:
             return value
 
     def get_alias_obj_by_name(self, value, language):
         try:
-            obj = Alias.objects.get(contents__name=value['name'], contents__language=language)
-        except (ObjectDoesNotExist, LookupError, TypeError):
+            obj = Alias.objects.filter(contents__name=value['name'])[0]
+        except:
             obj = None
         return obj
 
