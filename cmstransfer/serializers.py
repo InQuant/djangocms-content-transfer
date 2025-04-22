@@ -4,7 +4,7 @@ import json
 import uuid
 from django.apps import apps
 from django.conf import settings
-from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
 from django.utils import timezone
@@ -22,7 +22,7 @@ def get_related_object(value):
         relobj = None
     return relobj
 
-def search_related_object(value):
+def search_related_object(value, plugin_type:str=''):
     """
     try to find a matching model from value field which may have extra lookup fields, e.g. content_code
 
@@ -39,6 +39,11 @@ def search_related_object(value):
     if mdl_str in lookup_map:
         lookup_key = lookup_map[mdl_str]
         filter = {lookup_key: value.get(lookup_key)}
+    elif plugin_type == 'Alias':
+        try:
+            return mdl.objects.filter(contents__name=value.get('name')).distinct()[0]
+        except:
+            return None
     else:
         filter = {'pk': value['pk']}
         if mdl_str.startswith('filer.') and 'sha1' in value:

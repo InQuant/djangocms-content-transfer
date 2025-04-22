@@ -73,7 +73,7 @@ class PluginItem(TransferItem):
         config = self.config if not '_json' in self.config else self.config.get('_json')
         mdl_values = [v for v in config.values() if isinstance(v, dict) and 'model' in v]
         for mdl_value in mdl_values:
-            obj = search_related_object(mdl_value)
+            obj = search_related_object(mdl_value, self.plugin_type)
             if not obj:
                 errors.append(mdl_value.copy())
             mdl_value['pk'] = obj.pk if obj else None

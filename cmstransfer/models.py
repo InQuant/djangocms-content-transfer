@@ -46,6 +46,8 @@ class PageImport(Transfer):
     class Meta:
         verbose_name = 'Page Import'
 
+    def __str__(self):
+        return self.data.get('title') or f'PageImport: {self.id}'
 
 class AliasExport(Transfer):
     alias = models.ForeignKey(

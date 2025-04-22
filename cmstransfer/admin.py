@@ -86,7 +86,7 @@ class ImportActionMixin:
 @admin.register(PageImport)
 class PageImportAdmin(ImportActionMixin, admin.ModelAdmin):
     LABEL = 'Page'
-    list_display = ('parent_page', 'modified_at')
+    list_display = (PageImport, 'parent_page', 'modified_at')
     readonly_fields = ('update_action', 'import_action')
 
     def update_view(self, request, pk):
