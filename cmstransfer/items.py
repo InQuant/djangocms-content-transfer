@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field, asdict, fields, is_dataclass
 from typing import get_origin, get_args, Type, TypeVar, Dict, Any, List, get_type_hints
+from .serializers import search_related_object
 
 T = TypeVar('T', bound='TransferItem')
 
@@ -14,6 +15,9 @@ class TransferItem:
 
     def __str__(self):
         return f"{self.Meta.verbose_name}: {self.type}"
+
+    def collect_plugins(self) -> List['PluginItem']:
+        return []
 
     def asdict(self):
         return asdict(self)
@@ -46,17 +50,50 @@ class TransferItem:
 
         return cls(**init_data)
 
+
 @dataclass
 class PluginItem(TransferItem):
     plugin_type: str
     config: Dict[str, Any] = field(default_factory=dict)
     children: List['PluginItem'] = field(default_factory=list)
 
+    def collect_plugins(self) -> List['PluginItem']:
+        plugins = [self]
+        for child in self.children:
+            plugins.extend(child.collect_plugins())
+        return plugins
+
+    def update_model_refs(self) -> list[str]:
+        """queries all model refs in config and updates pks. 
+
+        Returns:
+            list[str]: errors - list of model_values where no db obj can be found
+        """
+        errors = []
+        config = self.config if not '_json' in self.config else self.config.get('_json')
+        mdl_values = [v for v in config.values() if isinstance(v, dict) and 'model' in v]
+        for mdl_value in mdl_values:
+            obj = search_related_object(mdl_value)
+            if not obj:
+                errors.append(mdl_value.copy())
+            mdl_value['pk'] = obj.pk if obj else None
+
+        # TODO: handle links:
+        # [v for v in instance.config.values() if isinstance(v, dict) and any(re.search(r'.*_link',k) for k in v.keys())]
+
+        return errors
+
 @dataclass
 class PlaceholderItem(TransferItem):
     slot: str
     extra_context: Dict[str, Any] = field(default_factory=dict)
     plugins: List[PluginItem] = field(default_factory=list)
+
+    def collect_plugins(self) -> List[PluginItem]:
+        plugins = []
+        for plugin in self.plugins:
+            plugins.extend(plugin.collect_plugins())
+        return plugins
 
 @dataclass
 class PageContentItem(TransferItem):
@@ -70,6 +107,12 @@ class PageContentItem(TransferItem):
     template: str = ""
     placeholders: List[PlaceholderItem] = field(default_factory=list)
 
+    def collect_plugins(self) -> List[PluginItem]:
+        plugins = []
+        for placeholder in self.placeholders:
+            plugins.extend(placeholder.collect_plugins())
+        return plugins
+
 @dataclass
 class PageItem(TransferItem):
     page_id: int
@@ -81,6 +124,22 @@ class PageItem(TransferItem):
     page_contents: List[PageContentItem] = field(default_factory=list)
     pages: List['PageItem'] = field(default_factory=list)
 
+    def collect_plugins(self) -> List[PluginItem]:
+        plugins = []
+        for content in self.page_contents:
+            plugins.extend(content.collect_plugins())
+        for subpage in self.pages:
+            plugins.extend(subpage.collect_plugins())
+        return plugins
+
+    def update_model_refs(self) -> list[str]:
+        """collects all plugins and updates there model refs.
+        """
+        errors = []
+        for plugin in self.collect_plugins():
+            errors.extend(plugin.update_model_refs())
+        return errors
+
 @dataclass
 class AliasContentItem(TransferItem):
     language: str
@@ -88,9 +147,29 @@ class AliasContentItem(TransferItem):
     template: str = ""
     placeholders: List[PlaceholderItem] = field(default_factory=list)
 
+    def collect_plugins(self) -> List[PluginItem]:
+        plugins = []
+        for placeholder in self.placeholders:
+            plugins.extend(placeholder.collect_plugins())
+        return plugins
+
 @dataclass
 class AliasItem(TransferItem):
     alias_id: int
     category: str
     languages: List[str] = field(default_factory=list)
     alias_contents: List[AliasContentItem] = field(default_factory=list)
+
+    def collect_plugins(self) -> List[PluginItem]:
+        plugins = []
+        for content in self.alias_contents:
+            plugins.extend(content.collect_plugins())
+        return plugins
+
+    def update_model_refs(self) -> list[str]:
+        """collects all plugins and updates there model refs.
+        """
+        errors = []
+        for plugin in self.collect_plugins():
+            errors.extend(plugin.update_model_refs())
+        return errors

@@ -5,7 +5,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from djangocms_alias.models import Alias, AliasContent, Category
 from djangocms_alias.utils import is_versioning_enabled
 
-from .serializers import get_related_object
+from .serializers import search_related_object
 from .items import PageItem, PageContentItem, PlaceholderItem, PluginItem, AliasItem, AliasContentItem
 
 # Mixins
@@ -30,7 +30,7 @@ class PluginMixin:
 
     def deserialize_value(self, value, plugin_type:str, language:str):
         if isinstance(value, dict) and 'model' in value and 'pk' in value:
-            obj = get_related_object(value)
+            obj = search_related_object(value)
             if obj == None and plugin_type == 'Alias':
                 obj = self.get_alias_obj_by_name(value, language)
             return obj

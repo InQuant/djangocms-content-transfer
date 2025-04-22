@@ -3,6 +3,7 @@ import decimal
 import json
 import uuid
 from django.apps import apps
+from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
@@ -21,6 +22,39 @@ def get_related_object(value):
         relobj = None
     return relobj
 
+def search_related_object(value):
+    """
+    try to find a matching model from value field which may have extra lookup fields, e.g. content_code
+
+    value can be:
+        {'model': 'filer.image', 'pk': 58, 'sha1': '2e0e6..0'}
+        {'model': 'speaker_tool.sessionperson', 'pk': 5, 'name': 'SessionPerson: Max Muster', content_code: '4234-daf'}
+    """
+    lookup_map = getattr(settings, 'CONTENT_TRANSFER_LOOKUP_KEYS', {})
+
+    mdl_str = value['model']
+    mdl = apps.get_model(mdl_str)
+
+    relobj = None
+    if mdl_str in lookup_map:
+        lookup_key = lookup_map[mdl_str]
+        filter = {lookup_key: value.get(lookup_key)}
+    else:
+        filter = {'pk': value['pk']}
+        if mdl_str.startswith('filer.') and 'sha1' in value:
+            filter['sha1'] = value['sha1']
+
+    try:
+        relobj = mdl.objects.get(**filter)
+    except (ObjectDoesNotExist, LookupError, TypeError):
+        if mdl_str.startswith('filer.') and 'sha1' in value:
+            # try with sha1 only
+            filter.pop('pk')
+            try:
+                mdl.objects.filter(**filter)[0] # to avoid multiple
+            except Exception:
+                pass # object will be None
+    return relobj
 
 class JsonEncoder(json.JSONEncoder):
     """

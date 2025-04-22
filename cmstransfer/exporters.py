@@ -3,9 +3,10 @@ from cms.models import Page, PageContent, Placeholder, CMSPlugin
 from cms.plugin_base import CMSPluginBase
 from cms.plugin_pool import plugin_pool
 from cmsplus.models import PlusItem
+from django.conf import settings
 from djangocms_text.models import Text as TextPlugin
 from djangocms_alias.models import Alias, AliasContent
-from .serializers import JsonEncoder
+from .serializers import JsonEncoder, get_related_object
 from .items import PageItem, PageContentItem, PlaceholderItem, PluginItem, AliasContentItem, AliasItem
 
 # Mixins
@@ -39,7 +40,14 @@ class PluginMixin:
         config = {}
         if isinstance(instance, PlusItem):
             # handle PlusItem
+
+            # update model values in config
+            self.update_model_values(instance.config)
             config['_json'] = instance.config
+
+            # TODO: handle links:
+            # [v for v in instance.config.values() if isinstance(v, dict) and any(re.search(r'.*_link',k) for k in v.keys())]
+
         elif isinstance(instance, TextPlugin):
             # handle TextPlugin
             config = {
@@ -60,6 +68,21 @@ class PluginMixin:
                         v = getattr(instance, field_name)
                         config[field_name] = self.serialize_value(v)
         return config
+
+    def update_model_values(self, config):
+        """update model values with extra lookup if configured to be able to use search_related_object() during import
+        """
+        lookup_keys_by_mdlstr = getattr(settings, 'CONTENT_TRANSFER_LOOKUP_KEYS', {})
+        mdl_values = [v for v in config.values() if isinstance(v, dict) and 'model' in v]
+        for mdl_value in mdl_values:
+            mdl_str = mdl_value['model']
+            if mdl_str not in lookup_keys_by_mdlstr:
+                continue
+
+            key = lookup_keys_by_mdlstr[mdl_str]
+            obj = get_related_object(mdl_value)
+            if obj:
+                mdl_value[key] = getattr(obj, key, None)
 
     def serialize_value(self, value):
         if isinstance(value, (list, tuple)):
