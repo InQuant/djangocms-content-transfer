@@ -24,6 +24,8 @@ class PluginMixin:
             target=parent,
             **plugin_item.config
         )
+        # save id for update_internal_links
+        plugin_item.id = plugin.id
 
         for child_item in plugin_item.children:
             self.import_plugin(placeholder, child_item, language, parent=plugin)
@@ -53,7 +55,7 @@ class PageImporter(PlaceholderMixin):
         self.user = user # needed for create_page_content (versioned PageContent)
         self.parent = parent
 
-    def import_page(self) -> Page:
+    def exec_import(self) -> Page:
         page = self.create_page(self.page_item)
 
         for idx, content_item in enumerate(self.page_item.page_contents):
@@ -62,7 +64,7 @@ class PageImporter(PlaceholderMixin):
             self.import_page_content(page, content_item, pc)
 
         for child_item in self.page_item.pages:
-            PageImporter(child_item, self.user, parent=page).import_page()
+            PageImporter(child_item, self.user, parent=page).exec_import()
 
         return page
 
@@ -103,7 +105,7 @@ class AliasImporter(PlaceholderMixin):
         self.alias_item = alias_item
         self.user = user # needed for create_alias_content (versioned AliasContent)
 
-    def import_alias(self) -> Alias:
+    def exec_import(self) -> Alias:
         alias = self.create_alias(self.alias_item)
 
         for content_item in self.alias_item.alias_contents:

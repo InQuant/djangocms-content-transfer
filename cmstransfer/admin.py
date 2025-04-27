@@ -12,7 +12,7 @@ from cms.forms.fields import PageSelectWidget
 from .models import PageExport, PageImport, AliasExport, AliasImport
 from .exporters import PageExporter, AliasExporter
 from .importers import PageImporter, AliasImporter
-from .items import PageItem, AliasItem
+from .items import PageItem, AliasItem, TransferItem
 
 
 # PageExport Admin
@@ -72,91 +72,114 @@ class ImportActionMixin:
         )
     update_action.short_description = "1. Update"
 
+    def update_links_action(self, obj):
+        if not obj.pk:
+            return "Save first and Import to enable update links."
+        url = f'../update-links/'
+        return format_html(
+            '<a class="button" href="{}">Update Internal Links in Plugins of %s Import Data</a>' % self.LABEL, url
+        )
+    update_links_action.short_description = "3. Update Links"
+
     def get_urls(self):
         urls = super().get_urls()
         custom_urls = [
             path('<int:pk>/update/', self.admin_site.admin_view(self.update_view), name=f'{self.LABEL.lower()}-update'),
             path('<int:pk>/import/', self.admin_site.admin_view(self.import_view), name=f'{self.LABEL.lower()}-import'),
+            path('<int:pk>/update-links/', self.admin_site.admin_view(self.update_links_view),
+                name=f'{self.LABEL.lower()}-update-links'),
         ]
         return custom_urls + urls
+
+    def update_view(self, request, pk):
+        if not request.user.is_superuser:
+            raise PermissionDenied
+
+        obj = self.get_object(request, pk)
+        item = self.item_cls.from_dict(obj.data)
+        errors = item.update_model_refs()
+
+        if errors:
+            error_html = "<br>".join(f"• {e} not found." for e in errors)
+            full_message = mark_safe(f"<strong>{item.type} Model refs with warnings:</strong><br>{error_html}")
+            self.message_user(request, full_message, messages.WARNING)
+
+        obj.data = item.asdict()
+        obj.save()
+
+        self.message_user(request, f"{item.type} Model Refs successfully updated!", messages.SUCCESS)
+        return redirect(f'../')  # back to detail
+
+    def _update_internal_links(self, request, item):
+        errors = item.update_internal_links()
+        if errors:
+            error_html = "<br>".join(f"• {e} not found." for e in errors)
+            full_message = mark_safe(f"<strong>{item.type} internal links with warnings:</strong><br>{error_html}")
+            self.message_user(request, full_message, messages.WARNING)
+        return errors
+
+    def import_view(self, request, pk):
+        if not request.user.is_superuser:
+            raise PermissionDenied
+
+        obj = self.get_object(request, pk)
+        item = self.item_cls.from_dict(obj.data)
+
+        importer = self.get_importer(item, request.user, obj)
+        importer.exec_import()
+
+        errors = self._update_internal_links(request, item)
+        if errors:
+            self.message_user(request, f"{item.type} successfully imported with internal link warnings!",
+               messages.SUCCESS)
+        else:
+            self.message_user(request, f"{item.type} successfully imported!", messages.SUCCESS)
+
+        obj.data = item.asdict()
+        obj.save()
+
+        return redirect(f'../')  # back to detail
+
+    def update_links_view(self, request, pk):
+        if not request.user.is_superuser:
+            raise PermissionDenied
+
+        obj = self.get_object(request, pk)
+        item = self.item_cls.from_dict(obj.data)
+
+        errors = self._update_internal_links(request, item)
+        if errors:
+            self.message_user(request, f"{item.type} has internal link warnings!", messages.SUCCESS)
+        else:
+            self.message_user(request, f"{item.type}: all links successfully updated!", messages.SUCCESS)
+
+        obj.data = item.asdict()
+        obj.save()
+
+        return redirect(f'../')  # back to detail
 
 
 # PageImport Admin
 # ----------------
 @admin.register(PageImport)
 class PageImportAdmin(ImportActionMixin, admin.ModelAdmin):
+    item_cls = PageItem
     LABEL = 'Page'
     list_display = (PageImport, 'parent_page', 'modified_at')
-    readonly_fields = ('update_action', 'import_action')
+    readonly_fields = ('update_action', 'import_action', 'update_links_action')
 
-    def update_view(self, request, pk):
-        if not request.user.is_superuser:
-            raise PermissionDenied
+    def get_importer(self, item:TransferItem, user, obj):
+        return PageImporter(item, user, parent=obj.parent_page)
 
-        obj = self.get_object(request, pk)
-        page_item = PageItem.from_dict(obj.data)
-        errors = page_item.update_model_refs()
-
-        if errors:
-            error_html = "<br>".join(f"• {e} not found." for e in errors)
-            full_message = mark_safe(f"<strong>Page Model refs with warnings:</strong><br>{error_html}")
-            self.message_user(request, full_message, messages.WARNING)
-
-        obj.data = page_item.asdict()
-        obj.save()
-
-        self.message_user(request, "Page Model Refs successfully updated!", messages.SUCCESS)
-        return redirect(f'../')  # back to detail
-
-    def import_view(self, request, pk):
-        if not request.user.is_superuser:
-            raise PermissionDenied
-
-        obj = self.get_object(request, pk)
-        page_item = PageItem.from_dict(obj.data)
-
-        importer = PageImporter(page_item, request.user, parent=obj.parent_page)
-        importer.import_page()
-
-        self.message_user(request, "Page successfully imported!", messages.SUCCESS)
-        return redirect(f'../../')  # back to changelist
 
 # AliasImport Admin
 # -----------------
 @admin.register(AliasImport)
 class AliasImportAdmin(ImportActionMixin, admin.ModelAdmin):
+    item_cls = AliasItem
     LABEL = 'Alias'
     list_display = (AliasImport, 'modified_at',)
     readonly_fields = ('update_action', 'import_action',)
 
-    def update_view(self, request, pk):
-        if not request.user.is_superuser:
-            raise PermissionDenied
-
-        obj = self.get_object(request, pk)
-        alias_item = AliasItem.from_dict(obj.data)
-        errors = alias_item.update_model_refs()
-
-        if errors:
-            error_html = "<br>".join(f"• {e} not found" for e in errors)
-            full_message = mark_safe(f"<strong>Alias Model refs with warnings:</strong><br>{error_html}")
-            self.message_user(request, full_message, messages.WARNING)
-
-        obj.data = alias_item.asdict()
-        obj.save()
-
-        self.message_user(request, "Alias Model refs successfully updated!", messages.SUCCESS)
-        return redirect(f'../')  # back to detail
-
-    def import_view(self, request, pk):
-        if not request.user.is_superuser:
-            raise PermissionDenied
-
-        obj = self.get_object(request, pk)
-        alias_item = AliasItem.from_dict(obj.data)
-
-        importer = AliasImporter(alias_item, request.user)
-        importer.import_alias()
-
-        self.message_user(request, "Alias successfully imported!", messages.SUCCESS)
-        return redirect(f'../../')  # back to changelist
+    def get_importer(self, item:TransferItem, user, obj=None):
+        return AliasImporter(item, user)

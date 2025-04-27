@@ -61,6 +61,23 @@ def search_related_object(value, plugin_type:str=''):
                 pass # object will be None
     return relobj
 
+
+def get_object_by_abs_url(mdl_str:str, abs_url:str) -> object:
+    """ gets an obj (type given by mdl_str) by its abs_url
+
+    Args:
+        mdl_str (str): e.g. 'cms.page'
+        abs_url (str): /huhu
+
+    Returns:
+        object: the obj
+    """
+    mdl = apps.get_model(mdl_str)
+    for obj in mdl.objects.all():
+        if obj.get_absolute_url() == abs_url:
+            return obj
+    return None
+
 class JsonEncoder(json.JSONEncoder):
     """
     JSONEncoder subclass that knows how to encode date/time/timedelta,

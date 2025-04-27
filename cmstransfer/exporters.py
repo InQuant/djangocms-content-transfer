@@ -43,10 +43,9 @@ class PluginMixin:
 
             # update model values in config
             self.update_model_values(instance.config)
+            self.update_internal_links(instance.config)
             config['_json'] = instance.config
 
-            # TODO: handle links:
-            # [v for v in instance.config.values() if isinstance(v, dict) and any(re.search(r'.*_link',k) for k in v.keys())]
 
         elif isinstance(instance, TextPlugin):
             # handle TextPlugin
@@ -83,6 +82,23 @@ class PluginMixin:
             obj = get_related_object(mdl_value)
             if obj:
                 mdl_value[key] = getattr(obj, key, None)
+
+    def update_internal_links(self, config):
+        """update internal_link  values with absolute_url for export to be able to find the correct page on the other
+        side.
+        {"internal_link": "cms.page:3"}
+        """
+        link_values = [v for v in config.values() if isinstance(v, dict) and 'internal_link' in v]
+        for link_value in link_values:
+            model_str, pk = link_value['internal_link'].split(':')
+            if not pk: continue
+
+            try:
+                obj = get_related_object({'model': model_str, 'pk': pk})
+                abs_url = obj.get_absolute_url()
+            except:
+                continue
+            link_value['internal_link'] = f'{model_str}:{abs_url}'
 
     def serialize_value(self, value):
         if isinstance(value, (list, tuple)):

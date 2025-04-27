@@ -1,6 +1,10 @@
 from dataclasses import dataclass, field, asdict, fields, is_dataclass
+from re import I
 from typing import get_origin, get_args, Type, TypeVar, Dict, Any, List, get_type_hints
-from .serializers import search_related_object
+from .serializers import search_related_object, get_object_by_abs_url
+
+from django.core.exceptions import ObjectDoesNotExist
+from cmsplus.models import PlusItem
 
 T = TypeVar('T', bound='TransferItem')
 
@@ -54,6 +58,7 @@ class TransferItem:
 @dataclass
 class PluginItem(TransferItem):
     plugin_type: str
+    id : int = -1
     config: Dict[str, Any] = field(default_factory=dict)
     children: List['PluginItem'] = field(default_factory=list)
 
@@ -78,10 +83,42 @@ class PluginItem(TransferItem):
                 errors.append(mdl_value.copy())
             mdl_value['pk'] = obj.pk if obj else None
 
-        # TODO: handle links:
-        # [v for v in instance.config.values() if isinstance(v, dict) and any(re.search(r'.*_link',k) for k in v.keys())]
+        return errors
+
+    def update_internal_links(self) -> list[str]:
+        """queries all internal links in config and updates replaces abs_url with pk.
+        Must not be called befor import or self.plugin must exist
+
+        Returns:
+            list[str]: errors - list of model_values where no db obj can be found
+        """
+        errors = []
+        if not hasattr(self, 'config') or not self.config.get('_json'):
+            return errors  # internal links only exists for PlusItems
+
+        if self.id == -1:
+            raise ImportError(f'must not be called before import or self.id must exist. ({self})!')
+
+        try:
+            plugin = PlusItem.objects.get(id=self.id)
+        except ObjectDoesNotExist as e:
+            # plugin no longer exists, so nothing to do
+            return errors
+
+        config = plugin.config
+        link_values = [v for v in config.values() if isinstance(v, dict) and 'internal_link' in v]
+        for link_value in link_values:
+            mdl_str, abs_url = link_value['internal_link'].split(':')
+            if not abs_url.startswith('/'):
+                continue # update already done
+            obj = get_object_by_abs_url(mdl_str, abs_url)
+            if not obj:
+                errors.append(link_value.copy())
+            link_value['internal_link'] = f'{mdl_str}:{obj.pk}' if obj else None
+            plugin.save()
 
         return errors
+
 
 @dataclass
 class PlaceholderItem(TransferItem):
@@ -140,6 +177,14 @@ class PageItem(TransferItem):
             errors.extend(plugin.update_model_refs())
         return errors
 
+    def update_internal_links(self) -> list[str]:
+        """collects all plugins and updates there internal links.
+        """
+        errors = []
+        for plugin in self.collect_plugins():
+            errors.extend(plugin.update_internal_links())
+        return errors
+
 @dataclass
 class AliasContentItem(TransferItem):
     language: str
@@ -172,4 +217,12 @@ class AliasItem(TransferItem):
         errors = []
         for plugin in self.collect_plugins():
             errors.extend(plugin.update_model_refs())
+        return errors
+
+    def update_internal_links(self) -> list[str]:
+        """collects all plugins and updates there internal links.
+        """
+        errors = []
+        for plugin in self.collect_plugins():
+            errors.extend(plugin.update_internal_links())
         return errors
