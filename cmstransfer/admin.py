@@ -7,7 +7,7 @@ from django.utils.safestring import mark_safe
 from django.urls import path
 from django.shortcuts import redirect
 from django.core.exceptions import PermissionDenied
-from cms.forms.fields import PageSelectWidget
+from cmsplus.fields import PageSearchField
 
 from .models import PageExport, PageImport, AliasExport, AliasImport
 from .exporters import PageExporter, AliasExporter
@@ -18,15 +18,13 @@ from .items import PageItem, AliasItem, TransferItem
 # PageExport Admin
 # ----------------
 class PageExportForm(forms.ModelForm):
+    page = PageSearchField(required=False)
     class Meta:
         model = PageExport
         fields = '__all__'
-        widgets = {
-            'page': PageSelectWidget,
-        }
 @admin.register(PageExport)
 class PageExportAdmin(admin.ModelAdmin):
-    #form = PageExportForm
+    form = PageExportForm
     list_display = ('page', 'modified_at')
 
     def save_model(self, request, obj, form, change):
@@ -161,8 +159,14 @@ class ImportActionMixin:
 
 # PageImport Admin
 # ----------------
+class PageImportForm(forms.ModelForm):
+    parent_page = PageSearchField(required=False)
+    class Meta:
+        model = PageImport
+        fields = '__all__'
 @admin.register(PageImport)
 class PageImportAdmin(ImportActionMixin, admin.ModelAdmin):
+    form = PageImportForm
     item_cls = PageItem
     LABEL = 'Page'
     list_display = (PageImport, 'parent_page', 'modified_at')
