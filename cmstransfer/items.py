@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field, asdict, fields, is_dataclass
 from re import I
 from typing import get_origin, get_args, Type, TypeVar, Dict, Any, List, get_type_hints
-from .serializers import search_related_object, get_object_by_abs_url
+from .serializers import search_related_objects, get_object_by_abs_url
 
 from django.core.exceptions import ObjectDoesNotExist
 from cmsplus.models import PlusItem
@@ -78,10 +78,14 @@ class PluginItem(TransferItem):
         config = self.config if not '_json' in self.config else self.config.get('_json')
         mdl_values = [v for v in config.values() if isinstance(v, dict) and 'model' in v]
         for mdl_value in mdl_values:
-            obj = search_related_object(mdl_value, self.plugin_type)
-            if not obj:
+            objs = search_related_objects(mdl_value, self.plugin_type)
+            if not objs:
                 errors.append(mdl_value.copy())
-            mdl_value['pk'] = obj.pk if obj else None
+            elif 'pk' in mdl_value:
+                obj = objs[0]
+                mdl_value['pk'] = obj.pk if obj else None
+            else:
+                mdl_value['p_keys'] = [obj.pk for obj in objs]
 
         return errors
 

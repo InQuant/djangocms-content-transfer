@@ -8,6 +8,9 @@ from djangocms_alias.utils import is_versioning_enabled
 from .serializers import get_related_object
 from .items import PageItem, PageContentItem, PlaceholderItem, PluginItem, AliasItem, AliasContentItem
 
+import logging
+logger = logging.getLogger(__name__)
+
 # Mixins
 # ------
 class PluginMixin:
@@ -17,13 +20,17 @@ class PluginMixin:
             for k, v in plugin_item.config.items():
                 plugin_item.config[k] = self.deserialize_value(v, plugin_item.plugin_type, language)
 
-        plugin = add_plugin(
-            placeholder,
-            plugin_type=plugin_item.plugin_type,
-            language=language,
-            target=parent,
-            **plugin_item.config
-        )
+        try:
+            plugin = add_plugin(
+                placeholder,
+                plugin_type=plugin_item.plugin_type,
+                language=language,
+                target=parent,
+                **plugin_item.config
+            )
+        except Exception as e:
+            logger.exception(f'{placeholder.page.get_title()}: cannot import plugin: {plugin_item.asdict()}')
+            return
         # save id for update_internal_links
         plugin_item.id = plugin.id
 
@@ -41,7 +48,11 @@ class PlaceholderMixin(PluginMixin):
         try:
             placeholder = content.placeholders.all().get(slot=placeholder_item.slot)
         except ObjectDoesNotExist:
-            placeholder = content.placeholder # alias?
+            try:
+                placeholder = content.placeholder # alias?
+            except AttributeError:
+                logger.exception(f'{content.page.get_title()}: cannot import placeholder: {placeholder_item.asdict()}')
+                return
 
         for plugin_item in placeholder_item.plugins:
             self.import_plugin(placeholder, plugin_item, language)

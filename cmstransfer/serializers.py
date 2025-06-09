@@ -22,44 +22,48 @@ def get_related_object(value):
         relobj = None
     return relobj
 
-def search_related_object(value, plugin_type:str=''):
+def search_related_objects(value, plugin_type:str=''):
     """
     try to find a matching model from value field which may have extra lookup fields, e.g. content_code
 
     value can be:
         {'model': 'filer.image', 'pk': 58, 'sha1': '2e0e6..0'}
         {'model': 'speaker_tool.sessionperson', 'pk': 5, 'name': 'SessionPerson: Max Muster', content_code: '4234-daf'}
+        {'model': 'zp_shop.product', 'names': ['huhu'], 'p_keys': [1,]}
     """
     lookup_map = getattr(settings, 'CONTENT_TRANSFER_LOOKUP_KEYS', {})
 
     mdl_str = value['model']
     mdl = apps.get_model(mdl_str)
 
-    relobj = None
+    relobjs = []
     if mdl_str in lookup_map:
         lookup_key = lookup_map[mdl_str]
         filter = {lookup_key: value.get(lookup_key)}
     elif plugin_type == 'Alias':
         try:
-            return mdl.objects.filter(contents__name=value.get('name')).distinct()[0]
+            return mdl.objects.filter(contents__name=value.get('name')).distinct()
         except:
-            return None
+            return []
+    elif 'p_keys' in value:
+        filter = {'pk__in': value['p_keys']}
     else:
         filter = {'pk': value['pk']}
+
         if mdl_str.startswith('filer.') and 'sha1' in value:
             filter['sha1'] = value['sha1']
 
     try:
-        relobj = mdl.objects.get(**filter)
+        relobjs = mdl.objects.filter(**filter)
     except (ObjectDoesNotExist, LookupError, TypeError):
         if mdl_str.startswith('filer.') and 'sha1' in value:
             # try with sha1 only
             filter.pop('pk')
             try:
-                relobj = mdl.objects.filter(**filter)[0] # to avoid multiple
+                relobjs = mdl.objects.filter(**filter)
             except Exception:
-                pass # object will be None
-    return relobj
+                pass # objects will be None
+    return relobjs
 
 
 def get_object_by_abs_url(mdl_str:str, abs_url:str) -> object:

@@ -10,7 +10,6 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('cms', '0035_auto_20230822_2208_squashed_0036_auto_20240311_1028'),
     ]
 
     operations = [
