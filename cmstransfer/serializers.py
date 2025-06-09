@@ -11,6 +11,9 @@ from django.utils import timezone
 from django.utils.encoding import force_str
 from django.utils.functional import Promise
 
+import logging
+logger = logging.getLogger(__name__)
+
 def get_related_object(value):
     """
     Returns the related field, referenced by the content of a ModelChoiceField.
@@ -44,6 +47,9 @@ def search_related_objects(value, plugin_type:str=''):
         try:
             return mdl.objects.filter(contents__name=value.get('name')).distinct()
         except:
+            logger.warn(f'nothing found via name: {value}')
+            pass
+        finally:
             return []
     elif 'p_keys' in value:
         filter = {'pk__in': value['p_keys']}
@@ -53,16 +59,16 @@ def search_related_objects(value, plugin_type:str=''):
         if mdl_str.startswith('filer.') and 'sha1' in value:
             filter['sha1'] = value['sha1']
 
-    try:
-        relobjs = mdl.objects.filter(**filter)
-    except (ObjectDoesNotExist, LookupError, TypeError):
-        if mdl_str.startswith('filer.') and 'sha1' in value:
-            # try with sha1 only
-            filter.pop('pk')
-            try:
-                relobjs = mdl.objects.filter(**filter)
-            except Exception:
-                pass # objects will be None
+    relobjs = mdl.objects.filter(**filter)
+    if not relobjs and mdl_str.startswith('filer.') and 'sha1' in value:
+        logger.warn(f'nothing found ({value}), try sha1 only...')
+        # try with sha1 only
+        filter = {'sha1': value['sha1']}
+        try:
+            relobjs = mdl.objects.filter(**filter)
+        except Exception as e:
+            logger.warn(f'nothing found: {e}')
+            pass # objects will be None
     return relobjs
 
 
