@@ -51,7 +51,7 @@ class PlaceholderMixin(PluginMixin):
             try:
                 placeholder = content.placeholder # alias?
             except AttributeError:
-                logger.exception(f'{content.page.get_title()}: cannot import placeholder: {placeholder_item.asdict()}')
+                logger.exception(f'{content.page.get_title()}: cannot import placeholder: {placeholder_item}')
                 return
 
         for plugin_item in placeholder_item.plugins:

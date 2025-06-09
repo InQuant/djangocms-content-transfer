@@ -1,3 +1,4 @@
+from cms.models import Page
 from dataclasses import dataclass, field, asdict, fields, is_dataclass
 from re import I
 from typing import get_origin, get_args, Type, TypeVar, Dict, Any, List, get_type_hints
@@ -5,6 +6,8 @@ from .serializers import search_related_objects, get_object_by_abs_url
 
 from django.core.exceptions import ObjectDoesNotExist
 from cmsplus.models import PlusItem
+
+import json
 
 T = TypeVar('T', bound='TransferItem')
 
@@ -101,7 +104,13 @@ class PluginItem(TransferItem):
             return errors  # internal links only exists for PlusItems
 
         if self.id == -1:
-            raise ImportError(f'must not be called before import or self.id must exist. ({self})!')
+            # raise ImportError(f'must not be called before import or self.id must exist. ({self})!')
+            return errors
+
+        try:
+            backup_page = Page.objects.get(reverse_id='error-404')
+        except ObjectDoesNotExist as e:
+            raise ImportError(f'backup page with reverse_id: "error-404" not found!')
 
         try:
             plugin = PlusItem.objects.get(id=self.id)
@@ -110,15 +119,23 @@ class PluginItem(TransferItem):
             return errors
 
         config = plugin.config
-        link_values = [v for v in config.values() if isinstance(v, dict) and 'internal_link' in v]
-        for link_value in link_values:
-            mdl_str, abs_url = link_value['internal_link'].split(':')
+        link_items = [(k, v) for k, v in config.items() if isinstance(v, dict) and 'internal_link' in v]
+        for key, link_value in link_items:
+            # import values must be gotten from import item config
+            import_link_value = self.config['_json'][key]
+            mdl_str, abs_url = import_link_value['internal_link'].split(':')
             if not abs_url.startswith('/'):
                 continue # update already done
             obj = get_object_by_abs_url(mdl_str, abs_url)
             if not obj:
-                errors.append(link_value.copy())
-            link_value['internal_link'] = f'{mdl_str}:{obj.pk}' if obj else None
+                errors.append(import_link_value.copy())
+                link_value['internal_link'] = f'cms.page:{backup_page.pk}'
+                # create data attribute with absolute url for later fixing
+                plugin.config['attributes'][f'data-link-{key}'] = json.dumps(import_link_value)
+            else:
+                link_value['internal_link'] = f'{mdl_str}:{obj.pk}'
+                # also update import_link_value to avoid fixing again
+                import_link_value['internal_link'] = f'{mdl_str}:{obj.pk}'
             plugin.save()
 
         return errors
