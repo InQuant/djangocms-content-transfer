@@ -47,9 +47,7 @@ def search_related_objects(value, plugin_type:str=''):
         try:
             return mdl.objects.filter(contents__name=value.get('name')).distinct()
         except:
-            logger.warn(f'nothing found via name: {value}')
-            pass
-        finally:
+            logger.warn(f'nothing found: {value}')
             return []
     elif 'p_keys' in value:
         filter = {'pk__in': value['p_keys']}
@@ -61,7 +59,7 @@ def search_related_objects(value, plugin_type:str=''):
 
     relobjs = mdl.objects.filter(**filter)
     if not relobjs and mdl_str.startswith('filer.') and 'sha1' in value:
-        logger.warn(f'nothing found ({value}), try sha1 only...')
+        logger.warn(f'nothing found: ({value}) - try sha1 only...')
         # try with sha1 only
         filter = {'sha1': value['sha1']}
         try:
